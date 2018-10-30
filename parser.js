@@ -264,10 +264,17 @@ const OP = reverseEnum({
  */
 
 const util = require('util')
-util.inspect.defaultOptions = { depth: 10 }
+util.inspect.defaultOptions = {
+    depth: 10,
+    breakLength: 136,
+}
 
 const buffer = fs.readFileSync('./main.wasm')
-console.log(parse(buffer))
+const result = parse(buffer)
+const wasmModule = buildModule(result.sections)
+
+console.log(result)
+console.log(wasmModule)
 
 
 /*
@@ -357,8 +364,6 @@ function parseTypeSection(section, state) {
     }
 
     assertEndAligned(subState)
-
-    state.types = entries
 
     return { count, entries }
 }
@@ -522,6 +527,153 @@ function parseNameSection(section, state) {
     return { entries }
 }
 
+
+function buildModule(sections) {
+    const module = {
+        types: [],
+        localFunctionsStart: undefined,
+        functions: [],
+        tables: [],
+        memories: [],
+        globals: [],
+        exports: {},
+        startFunction: undefined,
+        elements: [],
+    }
+
+    let functionIndex = 0
+
+    sections.forEach(section => {
+        switch (section.code) {
+            case SECTIONS.TYPE: {
+                module.types = section.data.entries
+                break
+            }
+            case SECTIONS.IMPORT: {
+                for (let i = 0; i < section.data.entries; i++) {
+                    const entry = section.data.entries[i]
+
+                    switch (entry.kind) {
+                        case EXTERNAL_KIND.FUNCTION:
+                            module.functions.push({
+                                index: functionIndex++,
+                                source: 'import',
+                                type: module.types[entry.type],
+                                data: entry,
+                            })
+                            break
+                        case EXTERNAL_KIND.TABLE:
+                            module.tables.push({
+                                source: 'import',
+                                elementType: entry.type.elementType,
+                                limits: entry.type.limits,
+                                data: undefined, // TODO: use external table as data
+                            })
+                            break
+                        case EXTERNAL_KIND.MEMORY:
+                            module.memories.push({
+                                source: 'import',
+                                ...entry.type
+                            })
+                            break
+                        case EXTERNAL_KIND.GLOBAL:
+                            module.globals.push({
+                                source: 'import',
+                                type: entry.type,
+                            })
+                            break
+                        default:
+                            unreachable()
+                    }
+                }
+                break
+            }
+            case SECTIONS.FUNCTION: {
+                const types = section.data.types
+
+                module.localFunctionsStart = functionIndex
+
+                for (let i = 0; i < types.length; i++) {
+                    module.functions.push({
+                        index: functionIndex++,
+                        source: 'local',
+                        type: types[i],
+                        data: undefined,
+                    })
+                }
+                break
+            }
+            case SECTIONS.TABLE: {
+                const entries = section.data.entries
+                for (let i = 0; i < entries.length; i++) {
+                    const entry = entries[i]
+                    module.tables.push({
+                        source: 'local',
+                        elementType: entry.elementType,
+                        limits: entry.limits,
+                        data: Array(entry.limits.initial).fill(undefined),
+                    })
+                }
+                break
+            }
+            case SECTIONS.MEMORY: {
+                const entries = section.data.entries
+                for (let i = 0; i < entries.length; i++) {
+                    const entry = entries[i]
+                    module.memories.push({
+                        source: 'local',
+                        ...entry
+                    })
+                }
+                break
+            }
+            case SECTIONS.GLOBAL: {
+                const globals = section.data.globals
+                for (let i = 0; i < globals.length; i++) {
+                    const global = globals[i]
+                    module.globals.push({
+                        source: 'local',
+                        ...global
+                    })
+                }
+                break
+            }
+            case SECTIONS.EXPORT: {
+                const entries = section.data.entries
+                for (let i = 0; i < entries.length; i++) {
+                    const entry = entries[i]
+                    module.exports[entry.field] = entry
+                }
+                break
+            }
+            case SECTIONS.START: {
+                module.startFunction = section.data.index
+                break
+            }
+            case SECTIONS.ELEMENT: {
+                const elementSegments = section.data.entries
+                for (let i = 0; i < elementSegments.length; i++) {
+                    const segment = elementSegments[i]
+
+                }
+            }
+            case SECTIONS.CODE:
+            case SECTIONS.DATA:
+
+            case SECTIONS.CUSTOM: {
+                if (section.name === 'name') {
+                }
+            }
+
+            default: // eslint-disable-line no-fallthrough
+                return undefined
+        }
+    })
+
+    return module
+}
+
+
 function readSection(state) {
     const code          = readSectionCode(state)
     const payloadLength = readVaruint32(state)
@@ -627,7 +779,7 @@ function readImportEntry(state) {
             unreachable()
     }
 
-    return { moduleName, fieldName, kind: EXTERNAL_KIND[kind], type }
+    return { moduleName, fieldName, kind, kindName: EXTERNAL_KIND[kind], type }
 }
 
 function readExternalKind(state) {
@@ -680,7 +832,7 @@ function readExportEntry(state) {
     const field = readString(state, fieldLength)
     const kind = readExternalKind(state)
     const index = readVaruint32(state)
-    return { field, kind, index }
+    return { field, kind, kindName: EXTERNAL_KIND[kind], index }
 }
 
 function readElementSegment(state) {
