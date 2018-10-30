@@ -10,7 +10,10 @@
     "type": "git",
     "url": "git+https://github.com/romgrk/wasm-js.git"
   },
-  "keywords": [],
+  "keywords": [
+    "webassembly",
+    "wasm"
+  ],
   "author": "Rom Grk <romgrk.cc@gmail.com>",
   "license": "ISC",
   "bugs": {
@@ -18,6 +21,7 @@
   },
   "homepage": "https://github.com/romgrk/wasm-js#readme",
   "dependencies": {
-    "chalk": "^2.4.1"
+    "chalk": "^2.4.1",
+    "utf8bts": "0.0.1"
   }
 }
