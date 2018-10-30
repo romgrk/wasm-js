@@ -2,8 +2,8 @@
  * parser.js
  */
 
-const fs = require('fs')
 const utf8bts = require('utf8bts')
+const { assert, unreachable } = require('./assertions.js')
 
 
 /*
@@ -64,7 +64,7 @@ const NAME_TYPE = {
     LOCAL:    2,
 }
 
-const TYPES = reverseEnum({
+const TYPE = reverseEnum({
     [-0x01]: 'i32',
     [-0x02]: 'i64',
     [-0x03]: 'f32',
@@ -260,27 +260,17 @@ const OP = reverseEnum({
 
 
 /*
- * Demo
+ * Exports
  */
 
-const util = require('util')
-util.inspect.defaultOptions = {
-    depth: 10,
-    breakLength: 136,
+module.exports = {
+    SECTIONS,
+    EXTERNAL_KIND,
+    NAME_TYPE,
+    TYPE,
+    OP,
+    parse,
 }
-
-const buffer = fs.readFileSync('./main.wasm')
-const result = parse(buffer)
-const wasmModule = buildModule(result.sections)
-
-console.log(result)
-console.log(wasmModule)
-
-
-/*
- * TODO:
- * - Assign function indices (monotonically increasing in order of definition, from import to module-defined)
- */
 
 
 /*
@@ -528,152 +518,6 @@ function parseNameSection(section, state) {
 }
 
 
-function buildModule(sections) {
-    const module = {
-        types: [],
-        localFunctionsStart: undefined,
-        functions: [],
-        tables: [],
-        memories: [],
-        globals: [],
-        exports: {},
-        startFunction: undefined,
-        elements: [],
-    }
-
-    let functionIndex = 0
-
-    sections.forEach(section => {
-        switch (section.code) {
-            case SECTIONS.TYPE: {
-                module.types = section.data.entries
-                break
-            }
-            case SECTIONS.IMPORT: {
-                for (let i = 0; i < section.data.entries; i++) {
-                    const entry = section.data.entries[i]
-
-                    switch (entry.kind) {
-                        case EXTERNAL_KIND.FUNCTION:
-                            module.functions.push({
-                                index: functionIndex++,
-                                source: 'import',
-                                type: module.types[entry.type],
-                                data: entry,
-                            })
-                            break
-                        case EXTERNAL_KIND.TABLE:
-                            module.tables.push({
-                                source: 'import',
-                                elementType: entry.type.elementType,
-                                limits: entry.type.limits,
-                                data: undefined, // TODO: use external table as data
-                            })
-                            break
-                        case EXTERNAL_KIND.MEMORY:
-                            module.memories.push({
-                                source: 'import',
-                                ...entry.type
-                            })
-                            break
-                        case EXTERNAL_KIND.GLOBAL:
-                            module.globals.push({
-                                source: 'import',
-                                type: entry.type,
-                            })
-                            break
-                        default:
-                            unreachable()
-                    }
-                }
-                break
-            }
-            case SECTIONS.FUNCTION: {
-                const types = section.data.types
-
-                module.localFunctionsStart = functionIndex
-
-                for (let i = 0; i < types.length; i++) {
-                    module.functions.push({
-                        index: functionIndex++,
-                        source: 'local',
-                        type: types[i],
-                        data: undefined,
-                    })
-                }
-                break
-            }
-            case SECTIONS.TABLE: {
-                const entries = section.data.entries
-                for (let i = 0; i < entries.length; i++) {
-                    const entry = entries[i]
-                    module.tables.push({
-                        source: 'local',
-                        elementType: entry.elementType,
-                        limits: entry.limits,
-                        data: Array(entry.limits.initial).fill(undefined),
-                    })
-                }
-                break
-            }
-            case SECTIONS.MEMORY: {
-                const entries = section.data.entries
-                for (let i = 0; i < entries.length; i++) {
-                    const entry = entries[i]
-                    module.memories.push({
-                        source: 'local',
-                        ...entry
-                    })
-                }
-                break
-            }
-            case SECTIONS.GLOBAL: {
-                const globals = section.data.globals
-                for (let i = 0; i < globals.length; i++) {
-                    const global = globals[i]
-                    module.globals.push({
-                        source: 'local',
-                        ...global
-                    })
-                }
-                break
-            }
-            case SECTIONS.EXPORT: {
-                const entries = section.data.entries
-                for (let i = 0; i < entries.length; i++) {
-                    const entry = entries[i]
-                    module.exports[entry.field] = entry
-                }
-                break
-            }
-            case SECTIONS.START: {
-                module.startFunction = section.data.index
-                break
-            }
-            case SECTIONS.ELEMENT: {
-                const elementSegments = section.data.entries
-                for (let i = 0; i < elementSegments.length; i++) {
-                    const segment = elementSegments[i]
-
-                }
-            }
-            case SECTIONS.CODE:
-            case SECTIONS.DATA:
-
-            case SECTIONS.CUSTOM: {
-                if (section.name === 'name') {
-                }
-            }
-
-            default: // eslint-disable-line no-fallthrough
-                return undefined
-        }
-    })
-
-    return module
-}
-
-
 function readSection(state) {
     const code          = readSectionCode(state)
     const payloadLength = readVaruint32(state)
@@ -791,10 +635,10 @@ function readExternalKind(state) {
 function readValueType(state) {
     const value = readVarIntN(state, 7)
 
-    if (!(value in TYPES))
+    if (!(value in TYPE))
         throw new Error('Invalid value_type: ' + value)
 
-    return { value, name: TYPES[value] }
+    return { value, name: TYPE[value] }
 }
 
 function readTableType(state) {
@@ -1404,15 +1248,6 @@ function isEndOp(op) {
     return op.code === OP.END
 }
 
-
-function unreachable() {
-    assert(false, 'unreachable')
-}
-
-function assert(expression, message) {
-    if (!expression)
-        throw new Error(message)
-}
 
 function assertEndAligned(state) {
     if (state.offset !== state.buffer.length) {

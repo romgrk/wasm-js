@@ -1,0 +1,23 @@
+{
+  "name": "wasm-js",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/romgrk/wasm-js.git"
+  },
+  "keywords": [],
+  "author": "Rom Grk <romgrk.cc@gmail.com>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/romgrk/wasm-js/issues"
+  },
+  "homepage": "https://github.com/romgrk/wasm-js#readme",
+  "dependencies": {
+    "chalk": "^2.4.1"
+  }
+}
