@@ -265,6 +265,7 @@ function instantiate(module, imports) {
             assert(fnInstance !== undefined, `Property "${fn.data.fieldName}" of module "${fn.data.moduleName}" undefined`)
             assert(typeof fnInstance === 'function', `Property "${fn.data.fieldName}" of module "${fn.data.moduleName}" is not a function`)
             instance.functions.push(fnInstance)
+            // TODO: stack boxing/unboxing
         }
         else if (fn.source === SOURCE.LOCAL) {
             instance.functions.push((...args) => {
