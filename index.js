@@ -38,6 +38,9 @@ const instance = instantiate(wasmModule, {
 console.log(instance)
 
 console.log('')
+console.log(instance.module.functions[1])
+
+console.log('')
 console.log(chalk.bold('Running .add_one_and_log:'))
 
 try {

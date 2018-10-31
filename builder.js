@@ -64,7 +64,8 @@ function build(sections) {
                                 index: functionIndex++,
                                 source: SOURCE.IMPORT,
                                 name: undefined,
-                                type: module.types[entry.type],
+                                type: entry.type,
+                                // typeString: typeToString(module.types[entry.type]),
                                 data: entry,
                             })
                             break
@@ -104,6 +105,7 @@ function build(sections) {
                         source: SOURCE.LOCAL,
                         name: undefined,
                         type: types[i],
+                        // typeString: typeToString(module.types[types[i]]),
                         data: undefined,
                     })
                 }
@@ -334,15 +336,6 @@ function instantiate(module, imports) {
     return instance
 }
 
-function createGlobalAccessor(module, field) {
-    const object = {}
-    Object.defineProperty(object, 'value', {
-        get: () => module[field],
-        set: value => module[field] = value,
-    })
-    return object
-}
-
 function callFunction(instance, fn, args) {
     throw new Error('not implemented')
 }
@@ -350,14 +343,14 @@ function callFunction(instance, fn, args) {
 function compileFunction(instance, fn) {
 }
 
-function compileOp(op) {
-    /*
+function compileOp(context, op) {
     switch (op.code) {
         case OP.UNREACHABLE:
             return 'throw new Error("unreachable")'
         case OP.NOP:
             return ''
         case OP.BLOCK:
+            context.blocks.push({ code: OP.BLOCK })
             return { code: OP.BLOCK, data: readValueType(state) }
         case OP.LOOP:
             return { code: OP.LOOP, data: readValueType(state) }
@@ -713,7 +706,6 @@ function compileOp(op) {
         default:
             unreachable()
     }
-    */
 }
 
 function runExpression(instance, code) {
@@ -756,4 +748,22 @@ function runExpressionOp(instance, op) {
         default:
             unreachable()
     }
+}
+
+
+/*
+ * Helpers
+ */
+
+function createGlobalAccessor(module, field) {
+    const object = {}
+    Object.defineProperty(object, 'value', {
+        get: () => module[field],
+        set: value => module[field] = value,
+    })
+    return object
+}
+
+function typeToString(type) {
+    return `(${type.params.map(p => p.name).join(', ')}) -> ${type.returnType ? type.returnType.name : '()'}`
 }
