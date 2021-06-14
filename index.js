@@ -27,14 +27,19 @@ util.inspect.defaultOptions = {
 
 const buffer = fs.readFileSync('./main.wasm')
 const result = parse(buffer)
+
 console.log(result)
+
 const wasmModule = build(result.sections)
+
 console.log(wasmModule)
+
 const instance = instantiate(wasmModule, {
     env: {
         log_message: m => console.log(chalk.bold.yellow('[log_message] ') + m),
     }
 })
+
 console.log(instance)
 
 console.log('')

@@ -294,14 +294,47 @@ function parse(buffer) {
     const sections = []
 
     while (state.offset < buffer.length) {
-        const section = readSection(state)
-        section.data = parseSection(section, state)
-        sections.push(section)
+        sections.push(readSection(state))
     }
 
     assertEndAligned(state)
 
     return { magicNumber, version, sections }
+}
+
+function readSection(state) {
+    const code          = readSectionCode(state)
+    const payloadLength = readVaruint32(state)
+
+    const payloadOffset = state.offset
+
+    const nameLength = code === 0 ? readVaruint32(state) : 0
+    const name       = code === 0 ? readString(state, nameLength) : undefined
+
+    const payload = readBytes(state, payloadLength - (state.offset - payloadOffset))
+
+    if (code !== 0) {
+        if (state.parsedSections[code])
+            throw new Error('Section present more than once: ' + code)
+        else 
+            state.parsedSections[code] = true
+
+        if (code < state.lastSectionCode)
+            throw new Error('Section out of order: ' + code)
+        else 
+            state.lastSectionCode = code
+    }
+
+    const section = {
+        code,
+        type: SECTIONS[code],
+        payloadLength,
+        nameLength,
+        name,
+        payload,
+    }
+    section.data = parseSection(section, state)
+    return section
 }
 
 function parseSection(section, state) {
@@ -515,33 +548,6 @@ function parseNameSection(section, state) {
     assertEndAligned(subState)
 
     return { entries }
-}
-
-
-function readSection(state) {
-    const code          = readSectionCode(state)
-    const payloadLength = readVaruint32(state)
-
-    const payloadOffset = state.offset
-
-    const nameLength = code === 0 ? readVaruint32(state) : 0
-    const name       = code === 0 ? readString(state, nameLength) : undefined
-
-    const payload = readBytes(state, payloadLength - (state.offset - payloadOffset))
-
-    if (code !== 0) {
-        if (state.parsedSections[code])
-            throw new Error('Section present more than once: ' + code)
-        else 
-            state.parsedSections[code] = true
-
-        if (code < state.lastSectionCode)
-            throw new Error('Section out of order: ' + code)
-        else 
-            state.lastSectionCode = code
-    }
-
-    return { code, type: SECTIONS[code], payloadLength, nameLength, name, payload }
 }
 
 function readSectionCode(state) {
